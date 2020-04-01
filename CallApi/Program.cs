@@ -1,13 +1,15 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace CallApi
 {
     class Program
     {
-        static int tableWidth = 73;
+        static int tableWidth = 100;
+
         static async System.Threading.Tasks.Task Main(string[] args)
         {
             string login = "supremecomponents";
@@ -29,17 +31,65 @@ namespace CallApi
 
             using (StreamReader sr = new StreamReader(result.Content.ReadAsStreamAsync().Result))
             {
-                // Console.WriteLine(sr.ReadToEnd()); // Raw Result
-                Console.Clear();
-                PrintLine();
-                PrintRow("Part No", "Manufacture", "Description", "Sources");
-                PrintLine();
-                PrintRow("", "", "", "");
-                PrintRow("", "", "", "");
-                PrintLine();
+                string jsonPretty = JsonPrettify(sr.ReadToEnd());
+                var details = JObject.Parse(jsonPretty);
+                //Console.WriteLine(string.Concat("Parts Requested: ",
+                //    details["itemserviceresult"]["data"]));
+                string jsonData = JsonPrettify(details["itemserviceresult"]["data"].ToString());
+                // var datas = JObject.Parse(jsonData);
+                var datas = JArray.Parse(jsonData);
+                foreach (JObject data in datas)
+                {
+                    string partsRequested = data.GetValue("partsRequested").ToString();
+                    string partsFound = data.GetValue("partsFound").ToString();
+                    string partsError = data.GetValue("partsError").ToString();
+                    Console.WriteLine(string.Concat("Parts Requested: ", partsRequested));
+                    Console.WriteLine(string.Concat("Parts Found: ", partsFound));
+                    Console.WriteLine(string.Concat("Parts Error: ", partsError));
+                    PrintLine();
+                    Console.WriteLine("SEARCH PARTS RESULT");
+                    PrintLine();
+                    PrintRow("Part No", "Manufacture", "Description");
+                    
+                    string resultList = JsonPrettify(data.GetValue("resultList").ToString());
+                    var rsLists = JArray.Parse(resultList);
+                    foreach (JObject rsList in rsLists)
+                    {
+                        string partList = rsList.GetValue("PartList").ToString();
+                        var prLists = JArray.Parse(partList);
+                        foreach (JObject prList in prLists)
+                        {
+                            string partNum = prList.GetValue("partNum").ToString();
+                            string desc = prList.GetValue("desc").ToString();
+                            string mfr = string.Concat("[",prList.GetValue("manufacturer").ToString(),"]");
+                            string mfrName = "";
+                            var mfrs = JArray.Parse(mfr);
+                            foreach (JObject manfr in mfrs)
+                            {
+                                mfrName = manfr.GetValue("mfrName").ToString();
+                            }
+                            PrintLine();
+                            PrintRow(partNum, mfrName, desc);
+                        }
+                    }
+                    PrintLine();
+                }
+                sr.Close();
                 Console.ReadLine();
+
             }
 
+        }
+        public static string JsonPrettify(string json)
+        {
+            using (var stringReader = new StringReader(json))
+            using (var stringWriter = new StringWriter())
+            {
+                var jsonReader = new JsonTextReader(stringReader);
+                var jsonWriter = new JsonTextWriter(stringWriter) { Formatting = Formatting.Indented };
+                jsonWriter.WriteToken(jsonReader);
+                return stringWriter.ToString();
+            }
         }
         static void PrintLine()
         {
